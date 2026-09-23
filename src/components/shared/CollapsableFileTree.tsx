@@ -178,9 +178,9 @@ const TreeNode = ({
               open={openMenuId === node.id}
               onOpenChange={(open) => onOpenMenuChange(node.id, open)}
             >
-              <DropdownMenuTrigger data-slot='dropdown-menu-trigger'>
+              <DropdownMenuTrigger data-slot='dropdown-menu-trigger' className={"h-3 relative"}>
                 <span
-                  className='cursor-pointer p-0.5 hover:scale-105'
+                  className='cursor-pointer p-0.5 hover:scale-105 absolute top-1/2 transform -translate-y-1/2 right-0'
                   onClick={(e) => e.stopPropagation()}
                 >
                   <MoreHorizontal size={13} />
