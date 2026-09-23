@@ -29,7 +29,9 @@ import {
   FolderPlus,
   MoreHorizontal,
   Pencil,
+  Search,
   Trash2,
+  X,
 } from "lucide-react";
 import { useState } from "react";
 import { RootState } from "@/redux/store";
@@ -285,6 +287,56 @@ function DraftRow({
   );
 }
 
+function getPath(node: TData, nodes: TData[]) {
+  const parts: string[] = [];
+  let current = node.parentId ? nodes.find((n) => n.id === node.parentId) : undefined;
+  while (current) {
+    parts.unshift(current.name);
+    current = current.parentId ? nodes.find((n) => n.id === current!.parentId) : undefined;
+  }
+  return parts.join("/");
+}
+
+function SearchResults({
+  query,
+  results,
+  nodes,
+  onNavigate,
+}: {
+  query: string;
+  results: TData[];
+  nodes: TData[];
+  onNavigate: (node: TData) => void;
+}) {
+  if (results.length === 0) {
+    return (
+      <p className='px-3 py-2 text-[13px] text-muted-foreground'>
+        No results for &quot;{query}&quot;
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      {results.map((node) => {
+        const Icon = node.type === "folder" ? Folder : File;
+        const path = getPath(node, nodes);
+        return (
+          <div
+            key={node.id}
+            className='flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-[13px] hover:bg-accent'
+            onClick={() => onNavigate(node)}
+          >
+            <Icon size={15} className='shrink-0 text-muted-foreground' />
+            <span className='truncate'>{node.name}</span>
+            {path && <span className='truncate text-xs text-muted-foreground'>{path}</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function CollapsableFileTree({
   selected,
   onSelect,
@@ -302,6 +354,7 @@ export default function CollapsableFileTree({
   const [renameValue, setRenameValue] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<TData | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const toggleFolder = (id: string) => {
     setExpanded((prev) => {
@@ -374,7 +427,27 @@ export default function CollapsableFileTree({
     setOpenMenuId(open ? id : null);
   };
 
+  const expandToNode = (node: TData) => {
+    const idsToExpand: string[] = node.type === "folder" ? [node.id] : [];
+    let parentId = node.parentId;
+    while (parentId) {
+      idsToExpand.push(parentId);
+      const parent = nodes.find((n) => n.id === parentId);
+      parentId = parent ? parent.parentId : null;
+    }
+    setExpanded((prev) => new Set([...prev, ...idsToExpand]));
+  };
+
+  const navigateToResult = (node: TData) => {
+    expandToNode(node);
+    if (node.type === "file") onSelect(node);
+    setSearchQuery("");
+  };
+
   const rootNodes = nodes.filter((n) => n.parentId === null);
+  const searchResults = nodes.filter((n) =>
+    n.name.toLowerCase().includes(searchQuery.trim().toLowerCase()),
+  );
 
   return (
     <div className='flex h-full flex-col'>
@@ -398,43 +471,73 @@ export default function CollapsableFileTree({
         </div>
       </div>
 
+      <div className='px-3 pb-2'>
+        <div className='flex items-center gap-2 rounded-sm border px-2 py-1'>
+          <Search size={13} className='shrink-0 text-muted-foreground' />
+          <input
+            value={searchQuery}
+            placeholder='Search files and folders'
+            className='w-full bg-transparent text-[13px] outline-none'
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <X
+              size={13}
+              className='shrink-0 cursor-pointer text-muted-foreground'
+              onClick={() => setSearchQuery("")}
+            />
+          )}
+        </div>
+      </div>
+
       <div className='flex-1 overflow-y-auto px-1 pb-2'>
-        {rootNodes.map((node) => (
-          <TreeNode
-            key={node.id}
-            node={node}
-            depth={0}
+        {searchQuery.trim() ? (
+          <SearchResults
+            query={searchQuery}
+            results={searchResults}
             nodes={nodes}
-            expanded={expanded}
-            selectedId={selected?.id ?? null}
-            draft={draft}
-            draftName={draftName}
-            renamingId={renamingId}
-            renameValue={renameValue}
-            onToggle={toggleFolder}
-            onSelect={onSelect}
-            onStartCreate={startCreate}
-            onDraftChange={setDraftName}
-            onCommitDraft={commitDraft}
-            onCancelDraft={cancelDraft}
-            onStartRename={startRename}
-            onRenameChange={setRenameValue}
-            onCommitRename={commitRename}
-            onCancelRename={cancelRename}
-            onDeleteRequest={setDeleteTarget}
-            openMenuId={openMenuId}
-            onOpenMenuChange={handleOpenMenuChange}
+            onNavigate={navigateToResult}
           />
-        ))}
-        {draft && draft.parentId === null && (
-          <DraftRow
-            depth={0}
-            type={draft.type}
-            value={draftName}
-            onChange={setDraftName}
-            onCommit={commitDraft}
-            onCancel={cancelDraft}
-          />
+        ) : (
+          <>
+            {rootNodes.map((node) => (
+              <TreeNode
+                key={node.id}
+                node={node}
+                depth={0}
+                nodes={nodes}
+                expanded={expanded}
+                selectedId={selected?.id ?? null}
+                draft={draft}
+                draftName={draftName}
+                renamingId={renamingId}
+                renameValue={renameValue}
+                onToggle={toggleFolder}
+                onSelect={onSelect}
+                onStartCreate={startCreate}
+                onDraftChange={setDraftName}
+                onCommitDraft={commitDraft}
+                onCancelDraft={cancelDraft}
+                onStartRename={startRename}
+                onRenameChange={setRenameValue}
+                onCommitRename={commitRename}
+                onCancelRename={cancelRename}
+                onDeleteRequest={setDeleteTarget}
+                openMenuId={openMenuId}
+                onOpenMenuChange={handleOpenMenuChange}
+              />
+            ))}
+            {draft && draft.parentId === null && (
+              <DraftRow
+                depth={0}
+                type={draft.type}
+                value={draftName}
+                onChange={setDraftName}
+                onCommit={commitDraft}
+                onCancel={cancelDraft}
+              />
+            )}
+          </>
         )}
       </div>
 
